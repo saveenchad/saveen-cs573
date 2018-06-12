@@ -1,5 +1,5 @@
 {
-  "name": "visualize-datasets",
+  "name": "final-project",
   "version": "1.0.0",
   "description": "",
   "main": "app.js",
@@ -10,10 +10,11 @@
   "author": "Saveen Chadalawada",
   "license": "ISC",
   "devDependencies": {
-    "chart.js": "^2.7.2",
     "jquery": "^3.3.1",
     "papaparse": "^4.4.0",
     "sweetalert2": "^7.19.3"
   },
-  "dependencies": {}
+  "dependencies": {
+    "canvasjs": "^1.8.1"
+  }
 }

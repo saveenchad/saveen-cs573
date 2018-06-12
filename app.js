@@ -1,68 +1,104 @@
+/*
+  TODO:
+    * percent of total number for base stats and for types
+    * clean up renderBtn disable logic (disable options in firstParam?)
+    * handle click through
+*/
 $(document).ready(function () {
+  var firstParam = $('#first-parameter');
+  var secondParam = $('#second-parameter');
+  var renderBtn = $('#render-button');
   var myChart = $('#myChart');
   var introMessage = $('#intro-message');
   var backButton = $('#back-button');
-  var datasetSelect = $('#dataset-select');
   var chart;
   var pokemonData;
-  var tedOverviewData;
-  var rawTedData;
+  var dataToRender;
+  var axisY1Label;
+  var axisY2Label;
+
+  init();
+
+  function init() {
+    var dataPromise = readDataset('final-pokemon.csv');
+    dataPromise.then(function (data) {
+      var parsedData = parseData(data);
+
+      pokemonData = convertPokemonData(parsedData);
+      buildCanvasObjects(pokemonData);
+    });
+  }
 
   backButton.on('click', function() {
     if (chart) {
       chart.destroy();
       chart = null;
     }
-    var selectedDataset = datasetSelect.val();
-    if (selectedDataset === 'pokemon') {
-      plotPokemonData(pokemonData);
-    } else if (selectedDataset === 'ted') {
-      plotTedData(tedOverviewData);
+    plotPokemonData(dataToRender, axisY1Label, axisY2Label);
+  });
+
+  firstParam.on('change', function() {
+    var firstChoice = firstParam.val();
+    var secondChoice = secondParam.val();
+
+    if (firstChoice === 'all') {
+      secondParam.attr('disabled', 'disabled');
+      renderBtn.removeClass('disabled');
+    } else {
+      if (firstChoice && secondChoice && firstChoice !== secondChoice) {
+        renderBtn.removeClass('disabled');
+      } else if (firstChoice && secondChoice && firstChoice === secondChoice) {
+        renderBtn.addClass('disabled');
+      }
+
+      secondParam.removeAttr('disabled');
+      secondParam.children().each(function () {
+        var option = $(this);
+
+        if (option.val() === firstChoice) {
+          option.attr('disabled', 'disabled');
+        } else if (option.val() !== 'title') {
+          option.removeAttr('disabled');
+        }
+      });
     }
   });
 
-  datasetSelect.on('change', function () {
-    if (chart) {
-      chart.destroy();
-      chart = null;
+  secondParam.on('change', function() {
+    var firstChoice = firstParam.val();
+    var secondChoice = secondParam.val();
+
+    if (firstChoice && secondChoice && firstChoice !== secondChoice) {
+      renderBtn.removeClass('disabled');
+    } else if (firstChoice && secondChoice && firstChoice === secondChoice) {
+      renderBtn.addClass('disabled')
     }
-    var selectedDataset = datasetSelect.val();
-    switch (selectedDataset) {
-      case 'countries':
-        hideBackButton();
-        var dataPromise = readDataset('population-densities-of-the-world.csv');
-        dataPromise.then(function (data) {
-          var parsedData = parseData(data);
-          var convertedData = convertCountryData(parsedData);
-          plotCountryData(convertedData);
-        })
-        break;
-      case 'pokemon':
-        var dataPromise = readDataset('pokemon.csv');
-        dataPromise.then(function (data) {
-          var parsedData = parseData(data);
-          pokemonData = convertPokemonData(parsedData);
-          plotPokemonData(pokemonData);
-        });
-        break;
-      case 'ted':
-        hideBackButton();
-        var dataPromise = readDataset('ted.csv');
-        dataPromise.then(function (data) {
-          rawTedData = parseData(data);
-          tedOverviewData = convertTedData(rawTedData);
-          plotTedData(tedOverviewData);
-        });
-        break;
-      default:
-        swal({
-          type: 'question',
-          title: 'Unknown Dataset!'
-        });
-    };
   });
 
-  /********** HELPER FUNCTION  **********/
+  renderBtn.on('click', function() {
+    if (!$(this).hasClass('disabled')) {
+      introMessage.hide();
+      renderPokemonData(firstParam.val(), secondParam.val());
+    }
+  });
+
+  /********** HELPER FUNCTIONS  **********/
+  function capitalize(text) {
+    return text.replace(/\w\S*/g, function(match) {
+      return match.charAt(0).toUpperCase() + match.substr(1).toLowerCase();
+    });
+  }
+
+  function onLegendClick(event) {
+    if (typeof (event.dataSeries.visible) === 'undefined' || event.dataSeries.visible) {
+      event.dataSeries.visible = false;
+    } else {
+      event.dataSeries.visible = true;
+    }
+
+    event.chart.render();
+  }
+
   function readDataset(fileName) {
     var filePath = './datasets/' + fileName;
     return $.get(filePath);
@@ -80,133 +116,237 @@ $(document).ready(function () {
     backButton.removeClass('show');
   }
 
-  function convertCountryData(data) {
-    var convertedData = [];
-    for (var i = 1; i < data.length - 1; i += 1) {
-      var row = data[i];
-      var newRow = {};
-      var literacy = parseInt(row[4]);
+  function buildCanvasObjects() {
+    for (var i = 0; i < baseStats.length; i += 1) {
+      var statName = baseStats[i];
+      var capStatName = capitalize(statName);
 
-      newRow.name = row[0];
-      newRow.x = parseInt(row[2]);
-      newRow.y = parseInt(row[1]);
-      newRow.z = parseInt(row[3]);
-      newRow.l = parseInt(literacy);
-      newRow.markerColor = "rgba(103, 59, 184, " + (parseInt(literacy) / 100) + ")"
-
-      convertedData.push(newRow);
+      canvasData.baseStats.push({
+        type: 'stackedColumn',
+        showInLegend: true,
+        color: canvasColors.baseStats[statName],
+        name: capStatName,
+        dataPoints: pokemonData.averages[statName],
+        toolTipContent: '<b>Generation {label}:</b><br/>Average <i>' + capStatName + '</i>: {y}'
+      });
     }
-    return convertedData;
+
+    for (var i = 0; i < pokemonTypes.length; i += 1) {
+      var type = pokemonTypes[i];
+      var capType = capitalize(type);
+
+      canvasData.types.push({
+        type: 'stackedColumn',
+        showInLegend: true,
+        name: capType,
+        color: canvasColors.types[type],
+        dataPoints: pokemonData.numOfType[type],
+        toolTipContent: '<b>Generation {label}:</b><br/>Number of <i>' + capType +'</i> Pokémon Introduced: {y}<br/>Percentage of Total Pokémon Added: {p}%<br/>Total favorite votes for <i>' + capType + '</i> Pokémon: {v}'
+      });
+    }
+
+    canvasData.totalFav = [
+      {
+        type: 'line',
+        showInLegend: true,
+        name: 'Favorites',
+        color: 'white',
+        dataPoints: pokemonData.genFavorites,
+        toolTipContent: '<b>Generation {label}:</b><br/>Number of Favorite Votes: {y}'
+      }
+    ];
+
+    canvasData.avgFav = [
+      {
+        type: 'line',
+        showInLegend: true,
+        name: 'Avg. Number of Favorites',
+        color: 'white',
+        dataPoints: pokemonData.averages.favorites,
+        toolTipContent: '<b>Generation {label}:</b><br/>Avg. Number of Favorite Votes per Pokémon: {y}'
+      }
+    ];
   }
 
-  function plotCountryData(data) {
-    introMessage.hide();
-    myChart.show();
-    chart = new CanvasJS.Chart('myChart', {
-      animationEnabled: true,
-      zoomEnabled: true,
-      theme: 'light2',
-      title: {
-        text: 'Population Density and Literacy vs. Area and Population of Countries'
-      },
-      axisX: {
-        title: 'Area (square miles)'
-      },
-      axisY: {
-        title: 'Population'
-      },
-      toolTip: {
-        fontFamily: 'Roboto'
-      },
-      data: [{
-        type: 'bubble',
-        showInLegend: true,
-        legendText: "Size of Bubble Represents Population Density, Opacity Represents Literacy",
-        legendMarkerType: "circle",
-        legendMarkerColor: "rgba(74,172,197,0.5)",
-        toolTipContent: '<b>{name}</b><br/>Population: {x}<br/>Area (sq. mi.): {y}<br/>Population Density (per sq. mi.): {z}<br />Literacy: {l}%',
-        dataPoints: data
-      }]
-    });
-    chart.render();
+  function renderPokemonData(firstParam, secondParam) {
+    if (firstParam === 'all') {
+      canvasData.totalFav[0].color = 'red';
+
+      var primaryData = canvasData.baseStats.concat(canvasData.totalFav);
+      var secondaryData = canvasData.types.concat(canvasData.avgFav);
+
+      for (var i = 0; i < primaryData.length; i += 1) {
+        primaryData[i].axisYType = 'primary';
+      }
+
+      for (var j = 0; j < secondaryData.length; j += 1) {
+        secondaryData[j].axisYType = 'secondary';
+      }
+
+      dataToRender = canvasData.baseStats.concat(secondaryData, canvasData.totalFav);
+      axisY1Label = 'Pokémon Average Base Stats & Total Favorite Votes';
+      axisY2Label = 'Number of Pokémon Introduced by Type & Average Votes per Pokémon'
+    } else {
+      var firstParamData = canvasData[firstParam];
+      var secondParamData = canvasData[secondParam];
+
+      for (var i = 0; i < firstParamData.length; i += 1) {
+        firstParamData[i].axisYType = 'primary';
+      }
+
+      for (var j = 0; j < secondParamData.length; j += 1) {
+        secondParamData[j].axisYType = 'secondary';
+      }
+
+      if (firstParamData[0].type === 'line' && secondParamData[0].type === 'line') {
+        firstParamData[0].color = 'red';
+        secondParamData[0].color = 'white';
+      } else if (firstParamData[0].type === 'line' && secondParamData[0].type !== 'line') {
+        firstParamData[0].color = 'white';
+      } else if (firstParamData[0].type !== 'line' && secondParamData[0].type === 'line') {
+        secondParamData[0].color = 'white';
+      }
+
+      if (firstParamData[0].type === 'line') {
+        dataToRender = secondParamData.concat(firstParamData);
+      } else {
+        dataToRender = firstParamData.concat(secondParamData);
+      }
+
+      axisY1Label = getLabel(firstParam);
+      axisY2Label = getLabel(secondParam);
+    }
+    plotPokemonData(dataToRender, axisY1Label, axisY2Label);
+  }
+
+  function getLabel(param) {
+    switch (param) {
+      case 'baseStats':
+        return 'Pokémon Average Base Stats';
+      case 'types':
+        return 'Number of Pokémon Introduced by Type';
+      case 'totalFav':
+        return 'Total Favorite Votes';
+      case 'avgFav':
+        return 'Average Votes per Pokémon';
+    }
   }
 
   function convertPokemonData(data) {
     var averages = {
       attack: [],
       defense: [],
-      hp: [],
-      specialAttack: [],
-      specialDefense: [],
-      speed: []
+      'hit points': [],
+      'special attack': [],
+      'special defense': [],
+      speed: [],
+      favorites: []
     };
-    var typeGroups = {};
+    var generations = {};
     var values = {};
+    var numOfType = {};
+    var genFavorites = [];
 
     for (var i = 1; i < data.length - 1; i += 1) {
       var row = data[i];
-      var type = row[2];
+      var gen = row[0];
 
-      if (typeGroups[type]) {
-        typeGroups[type].push(row);
-      } else {
-        typeGroups[type] = [];
-        typeGroups[type].push(row);
+      if (!generations[gen]) {
+        generations[gen] = [];
       }
+
+      generations[gen].push(row);
     }
 
-    for (var type in typeGroups) {
-      if (typeGroups.hasOwnProperty(type)) {
-        var typeGroup = typeGroups[type];
-        var sumAtk = sumDef = sumHP = sumSpAtk = sumSpDef = sumSpd = 0;
+    for (var generation in generations) {
+      if (generations.hasOwnProperty(generation)) {
+        var gen = generations[generation];
+        var sumAtk = sumDef = sumHP = sumSpAtk = sumSpDef = sumSpd = sumFavorites = 0;
+        var primaryType;
+        var genSumTypes = {};
 
-        values[type] = {
+        values[generation] = {
           attack: [],
           defense: [],
-          hp: [],
-          specialAttack: [],
-          specialDefense: [],
+          'hit points': [],
+          'special attack': [],
+          'special defense': [],
           speed: []
         };
 
-        for (var i = 0; i < typeGroup.length; i += 1) {
-          var pokemon = typeGroup[i];
+        for (var i = 0; i < gen.length; i += 1) {
+          var pokemon = gen[i];
 
-          values[type].attack.push({ label: pokemon[0], y: parseInt(pokemon[3]) });
-          values[type].defense.push({ label: pokemon[0], y: parseInt(pokemon[4]) });
-          values[type].hp.push({ label: pokemon[0], y: parseInt(pokemon[5]) });
-          values[type].specialAttack.push({ label: pokemon[0], y: parseInt(pokemon[6]) });
-          values[type].specialDefense.push({ label: pokemon[0], y: parseInt(pokemon[7]) });
-          values[type].speed.push({ label: pokemon[0], y: parseInt(pokemon[8]) });
+          primaryType = pokemon[3];
 
-          sumAtk += parseInt(pokemon[3]);
-          sumDef += parseInt(pokemon[4]);
-          sumHP += parseInt(pokemon[5]);
-          sumSpAtk += parseInt(pokemon[6]);
-          sumSpDef += parseInt(pokemon[7]);
-          sumSpd += parseInt(pokemon[8]);
+          if (genSumTypes[primaryType]) {
+            genSumTypes[primaryType].count += 1;
+            genSumTypes[primaryType].votes += parseInt(pokemon[11]);
+          } else {
+            genSumTypes[primaryType] = {
+              count: 1,
+              votes: parseInt(pokemon[11])
+            };
+          }
+
+          values[generation].attack.push({ label: pokemon[1], y: parseInt(pokemon[4]) });
+          values[generation].defense.push({ label: pokemon[1], y: parseInt(pokemon[5]) });
+          values[generation]['hit points'].push({ label: pokemon[1], y: parseInt(pokemon[6]) });
+          values[generation]['special attack'].push({ label: pokemon[1], y: parseInt(pokemon[7]) });
+          values[generation]['special defense'].push({ label: pokemon[1], y: parseInt(pokemon[8]) });
+          values[generation].speed.push({ label: pokemon[1], y: parseInt(pokemon[9]) });
+
+          sumAtk += parseInt(pokemon[4]);
+          sumDef += parseInt(pokemon[5]);
+          sumHP += parseInt(pokemon[6]);
+          sumSpAtk += parseInt(pokemon[7]);
+          sumSpDef += parseInt(pokemon[8]);
+          sumSpd += parseInt(pokemon[9]);
+          sumFavorites += parseInt(pokemon[11]);
         }
 
-        averages.attack.push({label: type, y: Math.round(sumAtk / typeGroup.length)});
-        averages.defense.push({label: type, y: Math.round(sumDef / typeGroup.length)});
-        averages.hp.push({label: type, y: Math.round(sumHP / typeGroup.length)});
-        averages.specialAttack.push({label: type, y: Math.round(sumSpAtk / typeGroup.length)});
-        averages.specialDefense.push({label: type, y: Math.round(sumSpDef / typeGroup.length)});
-        averages.speed.push({label: type, y: Math.round(sumSpd / typeGroup.length)});
+        for (var type of pokemonTypes) {
+          if (!numOfType[type]) {
+            numOfType[type] = [];
+          }
+
+          if (genSumTypes[type]) {
+            numOfType[type].push({
+              label: generation,
+              y: genSumTypes[type].count,
+              v: genSumTypes[type].votes,
+              p: Math.round((genSumTypes[type].count / gen.length) * 100)
+            });
+          } else {
+            numOfType[type].push({});
+          }
+        }
+
+        averages.attack.push({ label: generation, y: Math.round(sumAtk / gen.length) });
+        averages.defense.push({ label: generation, y: Math.round(sumDef / gen.length) });
+        averages['hit points'].push({ label: generation, y: Math.round(sumHP / gen.length) });
+        averages['special attack'].push({ label: generation, y: Math.round(sumSpAtk / gen.length) });
+        averages['special defense'].push({ label: generation, y: Math.round(sumSpDef / gen.length) });
+        averages.speed.push({ label: generation, y: Math.round(sumSpd / gen.length) });
+        averages.favorites.push({ label: generation, y: Math.round(sumFavorites / gen.length) });
+
+        genFavorites.push({label: generation, y: sumFavorites });
       }
     }
-    return { averages, values };
+
+    return { averages, values, numOfType, genFavorites };
   }
 
   function handlePokemonTypeClick(event) {
     showBackButton();
     var typeClicked = event.dataPoint.label;
+    var drilldownChartTitle = capitalize(typeClicked);
     chart = new CanvasJS.Chart('myChart', {
       animationEnabled: true,
       zoomEnabled: true,
       theme: 'light2',
       title: {
-        text: 'Base Stats for ' + typeClicked + ' Pokémon'
+        text: 'Base Stats for ' + drilldownChartTitle + ' Pokémon'
       },
       axisX: {
         title: 'Pokémon'
@@ -237,21 +377,21 @@ $(document).ready(function () {
           showInLegend: true,
           color: '#5ab75c',
           name: 'Hit Points',
-          dataPoints: pokemonData.values[typeClicked].hp
+          dataPoints: pokemonData.values[typeClicked]['hit points']
         },
         {
           type: 'stackedColumn',
           showInLegend: true,
           color: '#faa632',
           name: 'Special Attack',
-          dataPoints: pokemonData.values[typeClicked].specialAttack
+          dataPoints: pokemonData.values[typeClicked]['special attack']
         },
         {
           type: 'stackedColumn',
           showInLegend: true,
           color: '#4aafcd',
           name: 'Special Defense',
-          dataPoints: pokemonData.values[typeClicked].specialDefense
+          dataPoints: pokemonData.values[typeClicked]['special defense']
         },
         {
           type: 'stackedColumn',
@@ -265,245 +405,30 @@ $(document).ready(function () {
     chart.render();
   }
 
-  function plotPokemonData(data) {
+  function plotPokemonData(data, axisY1Label, axisY2Label) {
     hideBackButton();
-    introMessage.hide();
     myChart.show();
     chart = new CanvasJS.Chart('myChart', {
       animationEnabled: true,
       zoomEnabled: true,
-      theme: 'light2',
-      title: {
-        text: 'Average Base Stats of Pokémon by Type'
-      },
+      theme: 'dark1',
       axisX: {
-        title: 'Primary Type of Pokémon'
+        title: 'Pokémon Generation'
       },
       axisY: {
-        title: 'Stat Values'
+        title: axisY1Label
+      },
+      axisY2: {
+        title: axisY2Label
       },
       toolTip: {
         fontFamily: 'Roboto'
       },
-      data: [
-        {
-          click: handlePokemonTypeClick,
-          type: 'stackedColumn',
-          showInLegend: true,
-          color: '#da4f4a',
-          name: 'Attack',
-          dataPoints: data.averages.attack
-        },
-        {
-          click: handlePokemonTypeClick,
-          type: 'stackedColumn',
-          showInLegend: true,
-          color: '#016ecd',
-          name: 'Defense',
-          dataPoints: data.averages.defense
-        },
-        {
-          click: handlePokemonTypeClick,
-          type: 'stackedColumn',
-          showInLegend: true,
-          color: '#5ab75c',
-          name: 'Hit Points',
-          dataPoints: data.averages.hp
-        },
-        {
-          click: handlePokemonTypeClick,
-          type: 'stackedColumn',
-          showInLegend: true,
-          color: '#faa632',
-          name: 'Special Attack',
-          dataPoints: data.averages.specialAttack
-        },
-        {
-          click: handlePokemonTypeClick,
-          type: 'stackedColumn',
-          showInLegend: true,
-          color: '#4aafcd',
-          name: 'Special Defense',
-          dataPoints: data.averages.specialDefense
-        },
-        {
-          click: handlePokemonTypeClick,
-          type: 'stackedColumn',
-          showInLegend: true,
-          color: '#9d29b2',
-          name: 'Speed',
-          dataPoints: data.averages.speed
-        }
-      ]
-    });
-    chart.render();
-  }
-
-  function convertTedData(data) {
-    var sumTags = {};
-    var sumViewsOfTags = {};
-    var tagsData = [];
-    var viewsOfTagsData = [];
-
-    for (var i = 1; i < data.length - 1; i += 1) {
-      var row = data[i];
-       // convert string representation of array to JS array
-      // var ratings = JSON.parse(row[2].replace(/'/g, '"'));
-      var tags = JSON.parse(row[3].replace(/'/g, '"'));
-
-      for (var k = 0; k < tags.length; k += 1) {
-        if (sumTags[tags[k]]) {
-          sumTags[tags[k]] += 1;
-        } else {
-          sumTags[tags[k]] = 1;
-        }
-        if (sumViewsOfTags[tags[k]]) {
-          sumViewsOfTags[tags[k]] += parseInt(row[5]);
-        } else {
-          sumViewsOfTags[tags[k]] = parseInt(row[5]);
-        }
-      }
-    }
-
-    for (var tag in sumTags) {
-      tagsData.push({
-        label: tag,
-        y: sumTags[tag]
-      });
-    }
- 
-    for (var tag in sumViewsOfTags) {
-      viewsOfTagsData.push({
-        label: tag,
-        y: sumViewsOfTags[tag]
-      })
-    }
-
-    return { tagsData, viewsOfTagsData };
-  }
-
-  function plotTedData(data) {
-    hideBackButton();
-    introMessage.hide();
-    myChart.show();
-    chart = new CanvasJS.Chart('myChart', {
-      animationEnabled: true,
-      zoomEnabled: true,
-      theme: 'light2',
-      title: {
-        text: 'TED Talk Viewership by Tag'
+      legend: {
+        cursor: 'pointer',
+        itemclick: onLegendClick
       },
-      axisX: {
-        title: 'TED Talk Tags'
-      },
-      axisY: {
-        title: 'Number of TED Talks'
-      },
-      axisY2: {
-        title: 'Number of Views'
-      },
-      toolTip: {
-        fontFamily: 'Roboto',
-        shared: true
-      },
-      data: [
-        {
-          type: 'column',
-          click: handleTedTagClick,
-          toolTipContent: '<b>{label}</b><br/>Tagged TED Talks: {y}',
-          dataPoints: data.tagsData
-        },
-        {
-          type: 'area',
-          click: handleTedTagClick,
-          axisYType: "secondary",
-          toolTipContent: 'Total Views of Tagged TED Talks: {y}',
-          dataPoints: data.viewsOfTagsData
-        }
-      ]
-    });
-    chart.render();
-  }
-
-  function handleTedTagClick(event) {
-    showBackButton();
-    var tagClicked = event.dataPoint.label;
-    var plotData = {};
-    var viewsData = [];
-    var canvasData = [];
-
-    for (var i = 1; i < rawTedData.length - 1; i += 1) {
-      var row = rawTedData[i];
-      var tags = JSON.parse(row[3].replace(/'/g, '"'));
-
-      if (tags.includes(tagClicked)) {
-        var ratings = JSON.parse(row[2].replace(/'/g, '"'));
-
-        for (var j = 0; j < ratings.length; j += 1) {
-          var rating = ratings[j].name;
-          if (plotData[rating]) {
-            plotData[rating].push({
-              e: row[0],
-              s: row[1],
-              name: row[4],
-              y: ratings[j].count
-            });
-          } else {
-            plotData[rating] = [];
-            plotData[rating].push({
-              e: row[0],
-              s: row[1],
-              name: row[4],
-              y: ratings[j].count
-            });
-          }
-        }
-
-        viewsData.push({ y: parseInt(row[5]) });
-      }
-    }
-
-    for (var plotPoint in plotData) {
-      var stack = {
-        type: 'stackedColumn',
-        showInLegend: true,
-        name: plotPoint,
-        toolTipContent: '<b>{name}</b><br/>Event: {e}<br/>Speaker: {s}<br/>' + plotPoint + ': {y}',
-        dataPoints: plotData[plotPoint]
-      };
-      canvasData.push(stack);
-    }
-
-    canvasData.push({
-      type: 'line',
-      axisYType: "secondary",
-      color: "black",
-      toolTipContent: '<b>Views</b>: {y}',
-      dataPoints: viewsData
-    });
-
-    chart = new CanvasJS.Chart('myChart', {
-      animationEnabled: true,
-      zoomEnabled: true,
-      theme: 'light2',
-      title: {
-        text: 'Ratings for ' + tagClicked + ' TED Talks'
-      },
-      axisX: {
-        title: 'TED Talks',
-        interval: 1,
-        labelFontSize: 1
-      },
-      axisY: {
-        title: 'Ratings'
-      },
-      axisY2: {
-        title: 'Number of Views'
-      },
-      toolTip: {
-        fontFamily: 'Roboto'
-      },
-      data: canvasData
+      data
     });
     chart.render();
   }

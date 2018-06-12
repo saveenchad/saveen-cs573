@@ -13,15 +13,57 @@ header {
   width: 100%;
   display: flex;
   flex-flow: row nowrap;
-  justify-content: flex-start;
+  justify-content: space-around;
   align-items: center;
   flex-basis: 64px;
-  /* box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.2); */
-  border-bottom: 1px solid rgba(0,0,0,0.14);
+  border-bottom: 1px solid rgba(255,255,255,0.5);
+  background: #2a2a2a;
+  color: white;
+}
+
+#download-button a {
+  color: white;
 }
 
 header .app-title {
   margin-left: 1rem;
+}
+
+header chart-parameters {
+  display: flex;
+  flex-flow: row nowrap;
+  margin-right: 4rem;
+}
+
+chart-parameters span {
+  padding: 0 5px;
+}
+
+chart-parameters #render-button {
+  position: absolute;
+  top: 15px;
+  right: 8px;
+}
+
+.button {
+  background: rgb(66, 139, 202);
+  padding: 10px;
+  color: white;
+  border-radius: 5px;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.button.disabled {
+  cursor: not-allowed;
+  background: rgba(66, 139, 202, 0.6);
+}
+
+.button:not(.disabled):active,
+.button:not(.disabled):hover {
+  background: #337ab7;
 }
 
 .input-group {
@@ -64,6 +106,7 @@ chart-wrapper {
   flex-flow: row nowrap;
   justify-content: center;
   align-items: center;
+  background: #2a2a2a;
 }
 
 #myChart {
@@ -74,8 +117,8 @@ chart-wrapper {
 
 #intro-message {
   font-weight: 300;
-  font-size: 24px;
-  color: #d6d6d6;
+  font-size: 28px;
+  color: white;
 }
 
 #back-button {
@@ -83,14 +126,6 @@ chart-wrapper {
   position: absolute;
   top: 5rem;
   left: 2rem;
-  background: #428bca;
-  padding: 10px;
-  color: white;
-  border-radius: 5px;
-  text-transform: uppercase;
-  font-size: 12px;
-  font-weight: bold;
-  cursor: pointer;
 }
 
 #back-button.show {

@@ -1,6 +1,6 @@
 <html>
   <head>
-    <title>Visualize 3 Datasets</title>
+    <title>Final Visualization</title>
     <meta charset="utf-8" />
 
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,700">
@@ -10,34 +10,47 @@
   </head>
   <body>
     <header>
-      <h2 class="app-title">Visualize 3 Datasets</h2>
-      <div class="spacer-2"></div>
-      <div class="input-group">
-        <select id="dataset-select">
-          <option disabled selected>Select a Dataset</option>
-          <option value="countries">Population Densities of the World</option>
-          <option value="pokemon">Pokémon Base Stats</option>
-          <option value="ted">TED</option>
+      <span id="download-button" class="button" title="Download source data">
+        <a href="./datasets/final-pokemon.csv" download="pokemon.csv">
+          <i class="fa fa-download"></i>
+        </a>
+      </span>
+      <h2 class="app-title">Pokémon Base Stats & Player Likeness Visualization</h2>
+      <chart-parameters>
+        <label for="first-parameter">Chart Parameters:</label>
+        <select id="first-parameter">
+          <option value="title" disabled selected>First Parameter</option>
+          <option value="baseStats">Average Base Stats</option>
+          <option value="types">Types Introduced</option>
+          <option value="totalFav">Total Favorite Votes</option>
+          <option value="avgFav">Average Favorite Votes</option>
+          <option value="all">Show all data</option>
         </select>
-      </div>
+        <span>vs.</span>
+        <select id="second-parameter" disabled>
+          <option value="title" disabled selected>Second Parameter</option>
+          <option value="baseStats">Average Base Stats</option>
+          <option value="types">Types Introduced</option>
+          <option value="totalFav">Total Favorite Votes</option>
+          <option value="avgFav">Average Favorite Votes</option>
+        </select>
+        <div id="render-button" class="button disabled">Render</div>
+      </chart-parameters>
     </header>
     <chart-wrapper>
-      <!-- <canvas id="myChart"></canvas> -->
       <div id="myChart"></div>
-      <div id="intro-message">Please select a <b>dataset</b> to visualize</div>
-      <div id="back-button">
+      <div id="intro-message">Please select some <b>parameters</b> to visualize</div>
+      <div id="back-button" class="button">
         <i class="fa fa-chevron-left"></i>
         Back
       </div>
     </chart-wrapper>
 
     <script src="node_modules/jquery/dist/jquery.min.js"></script>
-    <!-- <script src="node_modules/chart.js/dist/Chart.min.js"></script> -->
     <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
     <script src="node_modules/papaparse/papaparse.min.js"></script>
     <script src="node_modules/sweetalert2/dist/sweetalert2.min.js"></script>
-    <!-- <script src="node_modules/chartjs-plugin-datalabels/dist/chartjs-plugin-datalabels.min.js"></script> -->
-    <!-- <script src="node_modules/chartjs-plugin-zoom/chartjs-plugin-zoom.min.js"></script> -->
+    <script src="data-structures.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
