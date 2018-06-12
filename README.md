@@ -1,5 +1,5 @@
 # saveen-cs573
-# Assignment 3 - Interactive Visualization
+# Project 3 - Interactive Visualization
 
 ## Demo URL
 
