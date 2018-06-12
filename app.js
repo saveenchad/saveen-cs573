@@ -5,6 +5,7 @@
     * handle click through
 */
 $(document).ready(function () {
+  // declare app-level variables
   var firstParam = $('#first-parameter');
   var secondParam = $('#second-parameter');
   var renderBtn = $('#render-button');
@@ -19,6 +20,9 @@ $(document).ready(function () {
 
   init();
 
+  /**
+   * @desc Initializes the application by reading and parsing the csv file
+   */
   function init() {
     var dataPromise = readDataset('final-pokemon.csv');
     dataPromise.then(function (data) {
@@ -29,6 +33,9 @@ $(document).ready(function () {
     });
   }
 
+  /**
+   * @desc Removes the drilled down chart and plots the exterior chart
+   */
   backButton.on('click', function() {
     if (chart) {
       chart.destroy();
@@ -37,14 +44,19 @@ $(document).ready(function () {
     plotPokemonData(dataToRender, axisY1Label, axisY2Label);
   });
 
+  /**
+   * @desc Handles the display of the second dropdown based on the choice selected in the first dropdown
+   */
   firstParam.on('change', function() {
     var firstChoice = firstParam.val();
     var secondChoice = secondParam.val();
 
+    // disable the second dropdown when 'all' is selected
     if (firstChoice === 'all') {
       secondParam.attr('disabled', 'disabled');
       renderBtn.removeClass('disabled');
     } else {
+      // temp logic to disable render button when user selects the same choice in both dropdowns
       if (firstChoice && secondChoice && firstChoice !== secondChoice) {
         renderBtn.removeClass('disabled');
       } else if (firstChoice && secondChoice && firstChoice === secondChoice) {
@@ -52,6 +64,7 @@ $(document).ready(function () {
       }
 
       secondParam.removeAttr('disabled');
+      // disable the selected option in the second dropdown
       secondParam.children().each(function () {
         var option = $(this);
 
@@ -64,6 +77,9 @@ $(document).ready(function () {
     }
   });
 
+  /**
+   * @desc When the user selects an option in the second dropdown
+   */
   secondParam.on('change', function() {
     var firstChoice = firstParam.val();
     var secondChoice = secondParam.val();
@@ -75,20 +91,34 @@ $(document).ready(function () {
     }
   });
 
+  /**
+   * @desc Handles the click event on the Render button
+   */
   renderBtn.on('click', function() {
     if (!$(this).hasClass('disabled')) {
       introMessage.hide();
+      // passes along the selected parameters to the render function
       renderPokemonData(firstParam.val(), secondParam.val());
     }
   });
 
   /********** HELPER FUNCTIONS  **********/
+
+  /**
+   * @desc Capitalizes the first letter of each word
+   * @param {String} text The string to capitalize
+   * @return {String} The capitalized string
+   */
   function capitalize(text) {
     return text.replace(/\w\S*/g, function(match) {
       return match.charAt(0).toUpperCase() + match.substr(1).toLowerCase();
     });
   }
 
+  /**
+   * @desc Toggles the respective data series when the user clicks on it in the legend
+   * @param {Event} event The canvasJS click event (contains the respective data series)
+   */
   function onLegendClick(event) {
     if (typeof (event.dataSeries.visible) === 'undefined' || event.dataSeries.visible) {
       event.dataSeries.visible = false;
@@ -99,23 +129,42 @@ $(document).ready(function () {
     event.chart.render();
   }
 
+  /**
+   * @desc Uses a jQuery GET request to read a file
+   * @param {String} fileName The file to read. Make sure it's in the /datasets folder!
+   * @return {Promise} The file data in CSV format
+   */
   function readDataset(fileName) {
     var filePath = './datasets/' + fileName;
     return $.get(filePath);
   }
 
+  /**
+   * @desc Uses PapaParse to convert CSV data to JSON
+   * @param {String} data CSV String to parse through and convert
+   * @return {Object} JSON representation of the data passed in
+   */
   function parseData(data) {
     return Papa.parse(data, { headers: true }).data;
   }
 
+  /**
+   * @desc Displays the back button for the user to click (when the user drills down and wants to go back)
+   */
   function showBackButton() {
     backButton.addClass('show');
   }
 
+  /**
+   * @desc Hides the back button when the user can't go back up (user is already seeing the overview)
+   */
   function hideBackButton() {
     backButton.removeClass('show');
   }
 
+  /**
+   * @desc Iterates over the harvested data and builds canvasJS option objects
+   */
   function buildCanvasObjects() {
     for (var i = 0; i < baseStats.length; i += 1) {
       var statName = baseStats[i];
@@ -168,11 +217,18 @@ $(document).ready(function () {
     ];
   }
 
+  /**
+   * @desc Builds the final canvasJS option objects to be rendered
+   * @param {String} firstParam The option selected from the first dropdown
+   * @param {String} secondParam The option selected from the second dropdown
+   */
   function renderPokemonData(firstParam, secondParam) {
     if (firstParam === 'all') {
       canvasData.totalFav[0].color = 'red';
 
+      // left Y-axis
       var primaryData = canvasData.baseStats.concat(canvasData.totalFav);
+      // right Y-axis
       var secondaryData = canvasData.types.concat(canvasData.avgFav);
 
       for (var i = 0; i < primaryData.length; i += 1) {
@@ -198,6 +254,7 @@ $(document).ready(function () {
         secondParamData[j].axisYType = 'secondary';
       }
 
+      // apply some colors to the lines to help them stick out
       if (firstParamData[0].type === 'line' && secondParamData[0].type === 'line') {
         firstParamData[0].color = 'red';
         secondParamData[0].color = 'white';
@@ -207,6 +264,7 @@ $(document).ready(function () {
         secondParamData[0].color = 'white';
       }
 
+      // Make sure that the line renders second so that it appears above the other data
       if (firstParamData[0].type === 'line') {
         dataToRender = secondParamData.concat(firstParamData);
       } else {
@@ -219,6 +277,11 @@ $(document).ready(function () {
     plotPokemonData(dataToRender, axisY1Label, axisY2Label);
   }
 
+  /**
+   * @desc Gets the associated label to display along the Y-axis
+   * @param {String} param The option selected in the dropdown
+   * @return {String} A label to help the user identify what data they are looking at
+   */
   function getLabel(param) {
     switch (param) {
       case 'baseStats':
@@ -232,6 +295,11 @@ $(document).ready(function () {
     }
   }
 
+  /**
+   * @desc Builds intermediary data structures from the JSON representation of the data
+   * @param {Object} data The JSON representation of the data
+   * @return {Object} A collection of useful intermediary data structures
+   */
   function convertPokemonData(data) {
     var averages = {
       attack: [],
@@ -247,6 +315,7 @@ $(document).ready(function () {
     var numOfType = {};
     var genFavorites = [];
 
+    // iterate over data and split values by pokémon generation
     for (var i = 1; i < data.length - 1; i += 1) {
       var row = data[i];
       var gen = row[0];
@@ -258,6 +327,7 @@ $(document).ready(function () {
       generations[gen].push(row);
     }
 
+    // iterate over all the pokémon generations and calculate various values / averages
     for (var generation in generations) {
       if (generations.hasOwnProperty(generation)) {
         var gen = generations[generation];
@@ -274,6 +344,7 @@ $(document).ready(function () {
           speed: []
         };
 
+        // iterate over the pokémon in each generation
         for (var i = 0; i < gen.length; i += 1) {
           var pokemon = gen[i];
 
@@ -305,6 +376,7 @@ $(document).ready(function () {
           sumFavorites += parseInt(pokemon[11]);
         }
 
+        // iterate over the 18 pokémon types
         for (var type of pokemonTypes) {
           if (!numOfType[type]) {
             numOfType[type] = [];
@@ -337,6 +409,10 @@ $(document).ready(function () {
     return { averages, values, numOfType, genFavorites };
   }
 
+  /**
+   * @desc UNUSED function that needs reimplementation. Displayed the drilled down chart when the user clicks on a pokémon type
+   * @param {Event} event A canvasJS event with the datapoint clicked on
+   */
   function handlePokemonTypeClick(event) {
     showBackButton();
     var typeClicked = event.dataPoint.label;
@@ -405,6 +481,12 @@ $(document).ready(function () {
     chart.render();
   }
 
+  /**
+   * @desc Renders the canvasJS chart with the final data
+   * @param {[Object]} data The canvasJS data to render
+   * @param {String} axisY1Label The label to display on the left Y-axis
+   * @param {String} axisY2Label The label to display on the right Y-axis
+   */
   function plotPokemonData(data, axisY1Label, axisY2Label) {
     hideBackButton();
     myChart.show();
