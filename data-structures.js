@@ -40,3 +40,33 @@ var canvasData = {
   totalFav: [],
   avgFav: []
 };
+
+var baseStatsTemplate = {
+  attack: [],
+  defense: [],
+  'hit points': [],
+  'special attack': [],
+  'special defense': [],
+  speed: [],
+  favorites: []
+};
+
+var generationsToObjectTemplate = {
+  one: {},
+  two: {},
+  three: {},
+  four: {},
+  five: {},
+  six: {},
+  seven: {}
+};
+
+var generationToArrayTemplate = {
+  one: [],
+  two: [],
+  three: [],
+  four: [],
+  five: [],
+  six: [],
+  seven: []
+}

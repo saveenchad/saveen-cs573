@@ -105,6 +105,21 @@ $(document).ready(function () {
   /********** HELPER FUNCTIONS  **********/
 
   /**
+   * @desc Calculates the variance for the sample
+   * @param {Number} avg The average of the sample
+   * @param {Array} sample The array of values that created avg
+   */
+  function calculateVariance(avg, sample) {
+    var averageDeviation = 0;
+
+    for (var i = 0; i < sample.length; i += 1) {
+      averageDeviation += Math.pow((sample[i] - avg), 2);
+    }
+
+    return (averageDeviation / (sample.length - 1));
+  }
+
+  /**
    * @desc Capitalizes the first letter of each word
    * @param {String} text The string to capitalize
    * @return {String} The capitalized string
@@ -130,13 +145,13 @@ $(document).ready(function () {
   }
 
   /**
-   * @desc Uses a jQuery GET request to read a file
-   * @param {String} fileName The file to read. Make sure it's in the /datasets folder!
-   * @return {Promise} The file data in CSV format
+   * @desc Pads the beginning of the input string with 0's to meet the input size
+   * @param {String} text The number to pad
+   * @param {Number} size The size you would like the end return string to be
    */
-  function readDataset(fileName) {
-    var filePath = './datasets/' + fileName;
-    return $.get(filePath);
+  function padStart(text, size) {
+    while (text.length < size) text = "0" + text;
+    return text;
   }
 
   /**
@@ -146,6 +161,16 @@ $(document).ready(function () {
    */
   function parseData(data) {
     return Papa.parse(data, { headers: true }).data;
+  }
+
+  /**
+   * @desc Uses a jQuery GET request to read a file
+   * @param {String} fileName The file to read. Make sure it's in the /datasets folder!
+   * @return {Promise} The file data in CSV format
+   */
+  function readDataset(fileName) {
+    var filePath = './datasets/' + fileName;
+    return $.get(filePath);
   }
 
   /**
@@ -176,7 +201,8 @@ $(document).ready(function () {
         color: canvasColors.baseStats[statName],
         name: capStatName,
         dataPoints: pokemonData.averages[statName],
-        toolTipContent: '<b>Generation {label}:</b><br/>Average <i>' + capStatName + '</i>: {y}'
+        toolTipContent: '<b>Generation {label}:</b><br/>Average <b>' + capStatName + '</b>: {y}<br/>Click to visualize <b>Generation {label}</b>',
+        click: handlePokemonGenClick
       });
     }
 
@@ -190,7 +216,8 @@ $(document).ready(function () {
         name: capType,
         color: canvasColors.types[type],
         dataPoints: pokemonData.numOfType[type],
-        toolTipContent: '<b>Generation {label}:</b><br/>Number of <i>' + capType +'</i> Pokémon Introduced: {y}<br/>Percentage of Total Pokémon Added: {p}%<br/>Total favorite votes for <i>' + capType + '</i> Pokémon: {v}'
+        toolTipContent: '<b>Generation {label}:</b><br/>Number of <b>' + capType + '</b> Pokémon Introduced: {y}<br/>Percentage of Total Pokémon Added: {p}%<br/>Total votes for <b>' + capType + '</b> Pokémon: {v}<br/>Percentage of Total Votes: {pv}%<br/>Click to visualize <b>' + capType + '</b> type pokémon in <b>Generation {label}</b>',
+        click: handlePokemonTypeGenClick
       });
     }
 
@@ -201,7 +228,8 @@ $(document).ready(function () {
         name: 'Favorites',
         color: 'white',
         dataPoints: pokemonData.genFavorites,
-        toolTipContent: '<b>Generation {label}:</b><br/>Number of Favorite Votes: {y}'
+        toolTipContent: '<b>Generation {label}:</b><br/>Number of Votes: {y}<br/><b>{mp}</b> had the <b>most votes</b> at <b>{mv}</b> votes<br/><b>{lp}</b> had the <b>least votes</b> at <b>{lv}</b> votes<br/>Click to visualize <b>Generation {label}</b>',
+        click: handlePokemonGenClick
       }
     ];
 
@@ -212,7 +240,8 @@ $(document).ready(function () {
         name: 'Avg. Number of Favorites',
         color: 'white',
         dataPoints: pokemonData.averages.favorites,
-        toolTipContent: '<b>Generation {label}:</b><br/>Avg. Number of Favorite Votes per Pokémon: {y}'
+        toolTipContent: '<b>Generation {label}:</b><br/>Avg. Number of Votes per Pokémon: {y}<br/>Sample variance: {v}<br/>Sample standard deviation: {stddev}<br/>Click to visualize <b>Generation {label}</b>',
+        click: handlePokemonGenClick
       }
     ];
   }
@@ -301,17 +330,10 @@ $(document).ready(function () {
    * @return {Object} A collection of useful intermediary data structures
    */
   function convertPokemonData(data) {
-    var averages = {
-      attack: [],
-      defense: [],
-      'hit points': [],
-      'special attack': [],
-      'special defense': [],
-      speed: [],
-      favorites: []
-    };
-    var generations = {};
-    var values = {};
+    var averages = jQuery.extend(true, {}, baseStatsTemplate);
+    var generations = jQuery.extend(true, {}, generationToArrayTemplate);
+    var pokemonGens = {};
+    var pokemonTypeGens = jQuery.extend(true, {}, generationsToObjectTemplate);
     var numOfType = {};
     var genFavorites = [];
 
@@ -319,10 +341,6 @@ $(document).ready(function () {
     for (var i = 1; i < data.length - 1; i += 1) {
       var row = data[i];
       var gen = row[0];
-
-      if (!generations[gen]) {
-        generations[gen] = [];
-      }
 
       generations[gen].push(row);
     }
@@ -332,40 +350,62 @@ $(document).ready(function () {
       if (generations.hasOwnProperty(generation)) {
         var gen = generations[generation];
         var sumAtk = sumDef = sumHP = sumSpAtk = sumSpDef = sumSpd = sumFavorites = 0;
+        var mostVotes = 0, leastVotes = 9999;
+        var mostVotedPokemon = leastVotedPokemon = '';
         var primaryType;
         var genSumTypes = {};
+        var capGeneration = capitalize(generation);
+        var genVotesArray = [];
 
-        values[generation] = {
-          attack: [],
-          defense: [],
-          'hit points': [],
-          'special attack': [],
-          'special defense': [],
-          speed: []
-        };
+        pokemonGens[generation] = jQuery.extend(true, {}, baseStatsTemplate);
 
         // iterate over the pokémon in each generation
         for (var i = 0; i < gen.length; i += 1) {
           var pokemon = gen[i];
-
+          var capLabel = capitalize(pokemon[1]);
           primaryType = pokemon[3];
+          var votesCasted = parseInt(pokemon[12]);
+          genVotesArray.push(votesCasted);
+
+          if (votesCasted > mostVotes) {
+            mostVotes = votesCasted;
+            mostVotedPokemon = capLabel;
+          }
+
+          if (votesCasted < leastVotes) {
+            leastVotes = votesCasted;
+            leastVotedPokemon = capLabel;
+          }
 
           if (genSumTypes[primaryType]) {
             genSumTypes[primaryType].count += 1;
-            genSumTypes[primaryType].votes += parseInt(pokemon[11]);
+            genSumTypes[primaryType].votes += votesCasted;
           } else {
             genSumTypes[primaryType] = {
               count: 1,
-              votes: parseInt(pokemon[11])
+              votes: votesCasted
             };
           }
 
-          values[generation].attack.push({ label: pokemon[1], y: parseInt(pokemon[4]) });
-          values[generation].defense.push({ label: pokemon[1], y: parseInt(pokemon[5]) });
-          values[generation]['hit points'].push({ label: pokemon[1], y: parseInt(pokemon[6]) });
-          values[generation]['special attack'].push({ label: pokemon[1], y: parseInt(pokemon[7]) });
-          values[generation]['special defense'].push({ label: pokemon[1], y: parseInt(pokemon[8]) });
-          values[generation].speed.push({ label: pokemon[1], y: parseInt(pokemon[9]) });
+          if (!pokemonTypeGens[generation][primaryType]) {
+            pokemonTypeGens[generation][primaryType] = jQuery.extend(true, {}, baseStatsTemplate);
+          }
+
+          pokemonTypeGens[generation][primaryType].attack.push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[4]), p: ((pokemon[4] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonTypeGens[generation][primaryType].defense.push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[5]), p: ((pokemon[5] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonTypeGens[generation][primaryType]['hit points'].push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[6]), p: ((pokemon[6] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonTypeGens[generation][primaryType]['special attack'].push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[7]), p: ((pokemon[7] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonTypeGens[generation][primaryType]['special defense'].push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[8]), p: ((pokemon[8] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonTypeGens[generation][primaryType].speed.push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[9]), p: ((pokemon[9] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonTypeGens[generation][primaryType].favorites.push({ label: capLabel, dexNum: pokemon[2], y: votesCasted, r: pokemon[11] });
+
+          pokemonGens[generation].attack.push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[4]), p: ((pokemon[4] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonGens[generation].defense.push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[5]), p: ((pokemon[5] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonGens[generation]['hit points'].push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[6]), p: ((pokemon[6] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonGens[generation]['special attack'].push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[7]), p: ((pokemon[7] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonGens[generation]['special defense'].push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[8]), p: ((pokemon[8] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonGens[generation].speed.push({ label: capLabel, dexNum: pokemon[2], y: parseInt(pokemon[9]), p: ((pokemon[9] / pokemon[10]) * 100).toFixed(1), r: pokemon[11] });
+          pokemonGens[generation].favorites.push({ label: capLabel, dexNum: pokemon[2], y: votesCasted, r: pokemon[11] });
 
           sumAtk += parseInt(pokemon[4]);
           sumDef += parseInt(pokemon[5]);
@@ -373,7 +413,7 @@ $(document).ready(function () {
           sumSpAtk += parseInt(pokemon[7]);
           sumSpDef += parseInt(pokemon[8]);
           sumSpd += parseInt(pokemon[9]);
-          sumFavorites += parseInt(pokemon[11]);
+          sumFavorites += votesCasted;
         }
 
         // iterate over the 18 pokémon types
@@ -384,45 +424,58 @@ $(document).ready(function () {
 
           if (genSumTypes[type]) {
             numOfType[type].push({
-              label: generation,
+              label: capGeneration,
               y: genSumTypes[type].count,
+              p: ((genSumTypes[type].count / gen.length) * 100).toFixed(2),
               v: genSumTypes[type].votes,
-              p: Math.round((genSumTypes[type].count / gen.length) * 100)
+              pv: ((genSumTypes[type].votes / sumFavorites) * 100).toFixed(2),
+              type
             });
           } else {
             numOfType[type].push({});
           }
         }
 
-        averages.attack.push({ label: generation, y: Math.round(sumAtk / gen.length) });
-        averages.defense.push({ label: generation, y: Math.round(sumDef / gen.length) });
-        averages['hit points'].push({ label: generation, y: Math.round(sumHP / gen.length) });
-        averages['special attack'].push({ label: generation, y: Math.round(sumSpAtk / gen.length) });
-        averages['special defense'].push({ label: generation, y: Math.round(sumSpDef / gen.length) });
-        averages.speed.push({ label: generation, y: Math.round(sumSpd / gen.length) });
-        averages.favorites.push({ label: generation, y: Math.round(sumFavorites / gen.length) });
+        var avgFavorites = (sumFavorites / gen.length);
 
-        genFavorites.push({label: generation, y: sumFavorites });
+        genVariance = calculateVariance(avgFavorites, genVotesArray);
+        genStdDev = Math.sqrt(genVariance).toFixed(2);
+
+        averages.attack.push({ label: capGeneration, y: Math.round(sumAtk / gen.length) });
+        averages.defense.push({ label: capGeneration, y: Math.round(sumDef / gen.length) });
+        averages['hit points'].push({ label: capGeneration, y: Math.round(sumHP / gen.length) });
+        averages['special attack'].push({ label: capGeneration, y: Math.round(sumSpAtk / gen.length) });
+        averages['special defense'].push({ label: capGeneration, y: Math.round(sumSpDef / gen.length) });
+        averages.speed.push({ label: capGeneration, y: Math.round(sumSpd / gen.length) });
+        averages.favorites.push({ label: capGeneration, y: Math.round(avgFavorites),  v: genVariance.toFixed(2), stddev: genStdDev });
+
+        genFavorites.push({ label: capGeneration, y: sumFavorites, mv: mostVotes, mp: mostVotedPokemon, lv: leastVotes, lp: leastVotedPokemon });
       }
     }
 
-    return { averages, values, numOfType, genFavorites };
+    return { averages, pokemonGens, pokemonTypeGens, numOfType, genFavorites };
+  }
+
+  function handlePokemonClick(event) {
+    var dexNumClicked = padStart(event.dataPoint.dexNum, 3);
+
+    window.open('https://www.serebii.net/pokedex-sm/' + dexNumClicked + '.shtml', '_blank');
   }
 
   /**
-   * @desc UNUSED function that needs reimplementation. Displayed the drilled down chart when the user clicks on a pokémon type
+   * @desc Displays the drilled down chart when the user clicks on a pokémon type
    * @param {Event} event A canvasJS event with the datapoint clicked on
    */
-  function handlePokemonTypeClick(event) {
+  function handlePokemonGenClick(event) {
     showBackButton();
-    var typeClicked = event.dataPoint.label;
-    var drilldownChartTitle = capitalize(typeClicked);
+    var genClicked = event.dataPoint.label.toLowerCase();
+    var drilldownChartTitle = capitalize(genClicked);
     chart = new CanvasJS.Chart('myChart', {
       animationEnabled: true,
       zoomEnabled: true,
-      theme: 'light2',
+      theme: 'dark1',
       title: {
-        text: 'Base Stats for ' + drilldownChartTitle + ' Pokémon'
+        text: 'Base Stats for Generation ' + drilldownChartTitle + ' Pokémon'
       },
       axisX: {
         title: 'Pokémon'
@@ -430,8 +483,15 @@ $(document).ready(function () {
       axisY: {
         title: 'Stat Values'
       },
+      axisY2: {
+        title: 'Favotite Votes'
+      },
       toolTip: {
         fontFamily: 'Roboto'
+      },
+      legend: {
+        cursor: 'pointer',
+        itemclick: onLegendClick
       },
       data: [
         {
@@ -439,47 +499,167 @@ $(document).ready(function () {
           showInLegend: true,
           color: '#da4f4a',
           name: 'Attack',
-          dataPoints: pokemonData.values[typeClicked].attack
+          dataPoints: pokemonData.pokemonGens[genClicked].attack,
+          toolTipContent: 'Base <b>attack</b> of <b>{label}</b>: <b>{y}</b><br/><b>Attack</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
         },
         {
           type: 'stackedColumn',
           showInLegend: true,
           color: '#016ecd',
           name: 'Defense',
-          dataPoints: pokemonData.values[typeClicked].defense
+          dataPoints: pokemonData.pokemonGens[genClicked].defense,
+          toolTipContent: 'Base <b>defense</b> of <b>{label}</b>: <b>{y}</b><br/><b>Defense</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
         },
         {
           type: 'stackedColumn',
           showInLegend: true,
           color: '#5ab75c',
           name: 'Hit Points',
-          dataPoints: pokemonData.values[typeClicked]['hit points']
+          dataPoints: pokemonData.pokemonGens[genClicked]['hit points'],
+          toolTipContent: 'Base <b>hit points</b> of <b>{label}</b>: <b>{y}</b><br/><b>Hit Points</b> make up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
         },
         {
           type: 'stackedColumn',
           showInLegend: true,
           color: '#faa632',
           name: 'Special Attack',
-          dataPoints: pokemonData.values[typeClicked]['special attack']
+          dataPoints: pokemonData.pokemonGens[genClicked]['special attack'],
+          toolTipContent: 'Base <b>special attack</b> of <b>{label}</b>: <b>{y}</b><br/><b>Special Attack</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
         },
         {
           type: 'stackedColumn',
           showInLegend: true,
           color: '#4aafcd',
           name: 'Special Defense',
-          dataPoints: pokemonData.values[typeClicked]['special defense']
+          dataPoints: pokemonData.pokemonGens[genClicked]['special defense'],
+          toolTipContent: 'Base <b>special defense</b> of <b>{label}</b>: <b>{y}</b><br/><b>Special Defense</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
         },
         {
           type: 'stackedColumn',
           showInLegend: true,
           color: '#9d29b2',
           name: 'Speed',
-          dataPoints: pokemonData.values[typeClicked].speed
+          dataPoints: pokemonData.pokemonGens[genClicked].speed,
+          toolTipContent: 'Base <b>speed</b> of <b>{label}</b>: <b>{y}</b><br/><b>Speed</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
+        },
+        {
+          type: 'line',
+          axisYType: 'secondary',
+          showInLegend: true,
+          name: 'Favorite Votes',
+          color: 'white',
+          dataPoints: pokemonData.pokemonGens[genClicked].favorites,
+          toolTipContent: 'Votes casted for <b>{label}</b>: <b>{y}</b><br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
         }
       ]
     });
     chart.render();
   }
+
+  function handlePokemonTypeGenClick(event) {
+    showBackButton();
+    var genClicked = event.dataPoint.label.toLowerCase();
+    var typeClicked = event.dataPoint.type.toLowerCase();
+
+    chart = new CanvasJS.Chart('myChart', {
+      animationEnabled: true,
+      zoomEnabled: true,
+      theme: 'dark1',
+      title: {
+        text: 'Base Stats and Favorite Votes for Generation ' + capitalize(genClicked) + ' - ' + capitalize(typeClicked) + ' Pokémon'
+      },
+      axisX: {
+        title: 'Pokémon'
+      },
+      axisY: {
+        title: 'Stat Values'
+      },
+      axisY2: {
+        title: 'Favorite Votes'
+      },
+      toolTip: {
+        fontFamily: 'Roboto'
+      },
+      legend: {
+        cursor: 'pointer',
+        itemclick: onLegendClick
+      },
+      data: [
+        {
+          type: 'stackedColumn',
+          showInLegend: true,
+          color: '#da4f4a',
+          name: 'Attack',
+          dataPoints: pokemonData.pokemonTypeGens[genClicked][typeClicked].attack,
+          toolTipContent: 'Base <b>attack</b> of <b>{label}</b>: <b>{y}</b><br/><b>Attack</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
+        },
+        {
+          type: 'stackedColumn',
+          showInLegend: true,
+          color: '#016ecd',
+          name: 'Defense',
+          dataPoints: pokemonData.pokemonTypeGens[genClicked][typeClicked].defense,
+          toolTipContent: 'Base <b>defense</b> of <b>{label}</b>: <b>{y}</b><br/><b>Defense</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
+        },
+        {
+          type: 'stackedColumn',
+          showInLegend: true,
+          color: '#5ab75c',
+          name: 'Hit Points',
+          dataPoints: pokemonData.pokemonTypeGens[genClicked][typeClicked]['hit points'],
+          toolTipContent: 'Base <b>hit points</b> of <b>{label}</b>: <b>{y}</b><br/><b>Hit Points</b> make up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
+        },
+        {
+          type: 'stackedColumn',
+          showInLegend: true,
+          color: '#faa632',
+          name: 'Special Attack',
+          dataPoints: pokemonData.pokemonTypeGens[genClicked][typeClicked]['special attack'],
+          toolTipContent: 'Base <b>special attack</b> of <b>{label}</b>: <b>{y}</b><br/><b>Special Attack</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
+        },
+        {
+          type: 'stackedColumn',
+          showInLegend: true,
+          color: '#4aafcd',
+          name: 'Special Defense',
+          dataPoints: pokemonData.pokemonTypeGens[genClicked][typeClicked]['special defense'],
+          toolTipContent: 'Base <b>special defense</b> of <b>{label}</b>: <b>{y}</b><br/><b>Special Defense</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
+        },
+        {
+          type: 'stackedColumn',
+          showInLegend: true,
+          color: '#9d29b2',
+          name: 'Speed',
+          dataPoints: pokemonData.pokemonTypeGens[genClicked][typeClicked].speed,
+          toolTipContent: 'Base <b>speed</b> of <b>{label}</b>: <b>{y}</b><br/><b>Speed</b> makes up <b>{p}%</b> of base stats total<br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
+        },
+        {
+          type: 'line',
+          axisYType: 'secondary',
+          showInLegend: true,
+          name: 'Favorite Votes',
+          color: 'white',
+          dataPoints: pokemonData.pokemonTypeGens[genClicked][typeClicked].favorites,
+          toolTipContent: 'Votes casted for <b>{label}</b>: <b>{y}</b><br/>This pokémon is <b>{r}</b><br/>Click to see all data about <b>{label}</b> (opens external link)',
+          click: handlePokemonClick
+        }
+      ]
+    });
+    chart.render();
+  } 
 
   /**
    * @desc Renders the canvasJS chart with the final data
