@@ -3,7 +3,7 @@
 
 ## Demo URL
 
-https://saveen-cs573.herokuapp.com/
+https://cs573.herokuapp.com/
 
 ## General
 
