@@ -1,9 +1,3 @@
-/*
-  TODO:
-    * percent of total number for base stats and for types
-    * clean up renderBtn disable logic (disable options in firstParam?)
-    * handle click through
-*/
 $(document).ready(function () {
   // declare app-level variables
   var firstParam = $('#first-parameter');
@@ -201,7 +195,7 @@ $(document).ready(function () {
         color: canvasColors.baseStats[statName],
         name: capStatName,
         dataPoints: pokemonData.averages[statName],
-        toolTipContent: '<b>Generation {label}:</b><br/>Average <b>' + capStatName + '</b>: {y}<br/>Click to visualize <b>Generation {label}</b>',
+        toolTipContent: '<b>Generation {label}:</b><br/>Average <b>' + capStatName + '</b>: {y}<br/><hr/>Click to visualize <b>Generation {label}</b>',
         click: handlePokemonGenClick
       });
     }
@@ -216,7 +210,7 @@ $(document).ready(function () {
         name: capType,
         color: canvasColors.types[type],
         dataPoints: pokemonData.numOfType[type],
-        toolTipContent: '<b>Generation {label}:</b><br/>Number of <b>' + capType + '</b> Pokémon Introduced: {y}<br/>Percentage of Total Pokémon Added: {p}%<br/>Total votes for <b>' + capType + '</b> Pokémon: {v}<br/>Percentage of Total Votes: {pv}%<br/>Click to visualize <b>' + capType + '</b> type pokémon in <b>Generation {label}</b>',
+        toolTipContent: '<b>Generation {label}:</b><br/>Number of <b>' + capType + '</b> Pokémon Introduced: {y}<br/>Percentage of Total Pokémon Added: {p}%<br/>Total votes for <b>' + capType + '</b> Pokémon: {v}<br/>Percentage of Total Votes: {pv}%<br/><hr/>Click to visualize <b>' + capType + '</b> type pokémon in <b>Generation {label}</b>',
         click: handlePokemonTypeGenClick
       });
     }
@@ -228,7 +222,7 @@ $(document).ready(function () {
         name: 'Favorites',
         color: 'white',
         dataPoints: pokemonData.genFavorites,
-        toolTipContent: '<b>Generation {label}:</b><br/>Number of Votes: {y}<br/><b>{mp}</b> had the <b>most votes</b> at <b>{mv}</b> votes<br/><b>{lp}</b> had the <b>least votes</b> at <b>{lv}</b> votes<br/>Click to visualize <b>Generation {label}</b>',
+        toolTipContent: '<b>Generation {label}:</b><br/>Number of Votes: {y}<br/><b>{mp}</b> had the <b>most votes</b> at <b>{mv}</b> votes<br/><b>{lp}</b> had the <b>least votes</b> at <b>{lv}</b> votes<br/><hr/>Click to visualize <b>Generation {label}</b>',
         click: handlePokemonGenClick
       }
     ];
@@ -240,7 +234,7 @@ $(document).ready(function () {
         name: 'Avg. Number of Favorites',
         color: 'white',
         dataPoints: pokemonData.averages.favorites,
-        toolTipContent: '<b>Generation {label}:</b><br/>Avg. Number of Votes per Pokémon: {y}<br/>Sample variance: {v}<br/>Sample standard deviation: {stddev}<br/>Click to visualize <b>Generation {label}</b>',
+        toolTipContent: '<b>Generation {label}:</b><br/>Avg. Number of Votes per Pokémon: {y}<br/>Sample variance: {v}<br/>Sample standard deviation: {stddev}<br/><hr/>Click to visualize <b>Generation {label}</b>',
         click: handlePokemonGenClick
       }
     ];
@@ -271,6 +265,10 @@ $(document).ready(function () {
       dataToRender = canvasData.baseStats.concat(secondaryData, canvasData.totalFav);
       axisY1Label = 'Pokémon Average Base Stats & Total Favorite Votes';
       axisY2Label = 'Number of Pokémon Introduced by Type & Average Votes per Pokémon'
+    } else if (secondParam === 'onlyFirst') {
+      dataToRender = canvasData[firstParam];
+      axisY1Label = getLabel(firstParam);
+      axisY2Label = undefined;
     } else {
       var firstParamData = canvasData[firstParam];
       var secondParamData = canvasData[secondParam];
@@ -303,6 +301,7 @@ $(document).ready(function () {
       axisY1Label = getLabel(firstParam);
       axisY2Label = getLabel(secondParam);
     }
+
     plotPokemonData(dataToRender, axisY1Label, axisY2Label);
   }
 
@@ -425,11 +424,11 @@ $(document).ready(function () {
           if (genSumTypes[type]) {
             numOfType[type].push({
               label: capGeneration,
-              y: genSumTypes[type].count,
-              p: ((genSumTypes[type].count / gen.length) * 100).toFixed(2),
-              v: genSumTypes[type].votes,
-              pv: ((genSumTypes[type].votes / sumFavorites) * 100).toFixed(2),
-              type
+              y: genSumTypes[type].count, // number of type added
+              p: ((genSumTypes[type].count / gen.length) * 100).toFixed(2), // percent of total pokemon added (in that generation)
+              v: genSumTypes[type].votes, // number of votes received for type
+              pv: ((genSumTypes[type].votes / sumFavorites) * 100).toFixed(2),  // percent of total votes (in that generation)
+              type,
             });
           } else {
             numOfType[type].push({});
@@ -670,7 +669,7 @@ $(document).ready(function () {
   function plotPokemonData(data, axisY1Label, axisY2Label) {
     hideBackButton();
     myChart.show();
-    chart = new CanvasJS.Chart('myChart', {
+    var chartOptions = {
       animationEnabled: true,
       zoomEnabled: true,
       theme: 'dark1',
@@ -680,9 +679,7 @@ $(document).ready(function () {
       axisY: {
         title: axisY1Label
       },
-      axisY2: {
-        title: axisY2Label
-      },
+      axisY2: {},
       toolTip: {
         fontFamily: 'Roboto'
       },
@@ -691,7 +688,16 @@ $(document).ready(function () {
         itemclick: onLegendClick
       },
       data
-    });
+    };
+
+    if (axisY2Label) {
+      chartOptions.axisY2 = {
+        title: axisY2Label
+      };
+    }
+
+    chart = new CanvasJS.Chart('myChart', chartOptions);
+
     chart.render();
   }
 });
